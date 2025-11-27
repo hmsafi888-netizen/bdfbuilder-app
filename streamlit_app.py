@@ -1,18 +1,75 @@
 import streamlit as st
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.lib.utils import simpleSplit
 from io import BytesIO
-import arabic_reshaper
-from bidi.algorithm import get_display
+import os
 
 # Page setup
 st.set_page_config(page_title="Arabic PDF Builder", layout="centered")
 
 st.title("📄 Arabic PDF Builder")
 st.markdown("Create beautiful PDFs with Arabic text and decorative borders")
+
+# Check for required packages
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.utils import simpleSplit
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.pdfbase import pdfmetrics
+    import arabic_reshaper
+    from bidi.algorithm import get_display
+    import requests
+    DEPENDENCIES_INSTALLED = True
+except ImportError as e:
+    DEPENDENCIES_INSTALLED = False
+    st.error("⚠️ Required packages are not installed!")
+    st.markdown("""
+    ### 📦 Missing Dependencies Detected
+    
+    Please create a `requirements.txt` file in your project root with:
+    
+    ```
+    streamlit
+    reportlab
+    arabic-reshaper
+    python-bidi
+    requests
+    ```
+    
+    ### For Streamlit Cloud:
+    1. Create `requirements.txt` in your GitHub repository
+    2. Add the packages listed above
+    3. Commit and push
+    4. Click "Reboot app" in the Manage App menu
+    
+    ### For Local Development:
+    ```bash
+    pip install reportlab arabic-reshaper python-bidi requests
+    ```
+    
+    Then restart your Streamlit app.
+    """)
+    st.stop()
+
+# Download Arabic font if not exists
+@st.cache_resource
+def download_arabic_font():
+    """Download Arabic font for PDF generation"""
+    font_path = "NotoNaskhArabic-Regular.ttf"
+    
+    if not os.path.exists(font_path):
+        try:
+            # Download Noto Naskh Arabic font from Google Fonts
+            url = "https://github.com/google/fonts/raw/main/ofl/notonaskharabic/NotoNaskhArabic%5Bwght%5D.ttf"
+            response = requests.get(url)
+            with open(font_path, 'wb') as f:
+                f.write(response.content)
+            return font_path
+        except:
+            return None
+    return font_path
+
+# Load the font
+arabic_font_path = download_arabic_font()
 
 # Sidebar for options
 st.sidebar.header("⚙️ PDF Settings")
@@ -101,6 +158,19 @@ def create_pdf(text, font_size, line_spacing, margins, alignment):
     page_width, page_height = A4
     c = canvas.Canvas(buffer, pagesize=A4)
     
+    # Register Arabic font (using downloaded Noto Naskh Arabic)
+    try:
+        if arabic_font_path and os.path.exists(arabic_font_path):
+            pdfmetrics.registerFont(TTFont('Arabic', arabic_font_path))
+            font_name = 'Arabic'
+        else:
+            # Fallback to Helvetica if Arabic font not available
+            font_name = 'Helvetica'
+            st.warning("⚠️ Arabic font not available, using fallback. Text may not display correctly.")
+    except Exception as e:
+        font_name = 'Helvetica'
+        st.warning(f"⚠️ Could not load Arabic font: {e}")
+    
     # Convert margins to points
     margin_top_pt = mm_to_points(margins['top'])
     margin_bottom_pt = mm_to_points(margins['bottom'])
@@ -111,8 +181,8 @@ def create_pdf(text, font_size, line_spacing, margins, alignment):
     text_width = page_width - margin_left_pt - margin_right_pt
     text_height = page_height - margin_top_pt - margin_bottom_pt
     
-    # Use built-in Helvetica for Arabic (in real app, you'd use Arabic font)
-    c.setFont("Helvetica", font_size)
+    # Set font
+    c.setFont(font_name, font_size)
     
     # Process Arabic text
     reshaped_text = arabic_reshaper.reshape(text)
@@ -124,7 +194,7 @@ def create_pdf(text, font_size, line_spacing, margins, alignment):
     
     for paragraph in paragraphs:
         if paragraph.strip():
-            wrapped_lines = simpleSplit(paragraph, "Helvetica", font_size, text_width)
+            wrapped_lines = simpleSplit(paragraph, font_name, font_size, text_width)
             lines.extend(wrapped_lines)
         else:
             lines.append('')  # Empty line for paragraph breaks
@@ -141,7 +211,7 @@ def create_pdf(text, font_size, line_spacing, margins, alignment):
     for page_start in range(0, len(lines), lines_per_page):
         if page_start > 0:
             c.showPage()  # New page
-            c.setFont("Helvetica", font_size)
+            c.setFont(font_name, font_size)
         
         # Draw decorative borders
         draw_decorative_border(c, page_width, page_height)
@@ -236,12 +306,3 @@ st.markdown("""
 
 **Note:** For best results with Arabic text, ensure your text is properly formatted.
 """)
-
-# Requirements info
-with st.expander("📦 Installation Requirements"):
-    st.code("""
-pip install streamlit
-pip install reportlab
-pip install arabic-reshaper
-pip install python-bidi
-    """, language="bash")

@@ -74,22 +74,46 @@ arabic_font_path = download_arabic_font()
 # Sidebar for options
 st.sidebar.header("⚙️ PDF Settings")
 
-# Arabic text input
-arabic_text = st.text_area(
-    "Enter Arabic Text:",
-    height=200,
-    placeholder="اكتب النص العربي هنا...",
-    help="Enter your Arabic text here"
+# Title Section
+st.subheader("📌 Title (First Page Header)")
+title_text = st.text_input(
+    "Enter Title:",
+    placeholder="عنوان المستند",
+    help="This will appear at the top of the first page"
 )
 
-# Font size selection
+col1, col2 = st.columns(2)
+with col1:
+    title_font_size = st.number_input(
+        "Title Font Size:",
+        min_value=16,
+        max_value=48,
+        value=24,
+        step=2,
+        help="Font size for the title"
+    )
+with col2:
+    title_bold = st.checkbox("Bold Title", value=True)
+
+st.markdown("---")
+
+# Body text Section
+st.subheader("📄 Body Content")
+arabic_text = st.text_area(
+    "Enter Body Text:",
+    height=200,
+    placeholder="اكتب النص العربي هنا...",
+    help="Enter your main content here"
+)
+
+# Font size selection for body
 font_size = st.sidebar.slider(
-    "Font Size:",
+    "Body Font Size:",
     min_value=10,
     max_value=24,
     value=14,
     step=1,
-    help="Select the font size for your text"
+    help="Select the font size for body text"
 )
 
 # Line spacing
@@ -253,7 +277,7 @@ def create_pdf(text, font_size, line_spacing, margins, alignment):
 # Generate PDF button
 if st.button("🎨 Generate PDF", type="primary", use_container_width=True):
     if not arabic_text.strip():
-        st.error("⚠️ Please enter some text first!")
+        st.error("⚠️ Please enter some body text first!")
     else:
         with st.spinner("Creating your PDF..."):
             try:
@@ -265,6 +289,9 @@ if st.button("🎨 Generate PDF", type="primary", use_container_width=True):
                 }
                 
                 pdf_buffer = create_pdf(
+                    title_text,
+                    title_font_size,
+                    title_bold,
                     arabic_text,
                     font_size,
                     line_spacing,
@@ -275,13 +302,16 @@ if st.button("🎨 Generate PDF", type="primary", use_container_width=True):
                 st.success("✅ PDF created successfully!")
                 
                 # Preview info
-                st.info(f"""
+                info_text = f"""
                 **PDF Details:**
-                - Font Size: {font_size}pt
+                - Title: {'Yes' if title_text else 'No title'}
+                - Title Font Size: {title_font_size}pt
+                - Body Font Size: {font_size}pt
                 - Line Spacing: {line_spacing}
                 - Alignment: {text_align}
                 - Margins: T:{margin_top}mm, B:{margin_bottom}mm, L:{margin_left}mm, R:{margin_right}mm
-                """)
+                """
+                st.info(info_text)
                 
                 # Download button
                 st.download_button(
@@ -299,10 +329,12 @@ if st.button("🎨 Generate PDF", type="primary", use_container_width=True):
 st.markdown("---")
 st.markdown("""
 ### 📝 Instructions:
-1. **Enter your Arabic text** in the text area above
-2. **Adjust settings** in the sidebar (font size, spacing, margins)
-3. **Click Generate PDF** to create your document
-4. **Download** your beautifully formatted PDF
+1. **Enter a title** (optional) - This will appear at the top of the first page
+2. **Adjust title settings** - Font size and bold options
+3. **Enter your body text** in the text area
+4. **Adjust body settings** in the sidebar (font size, spacing, margins)
+5. **Click Generate PDF** to create your document
+6. **Download** your beautifully formatted PDF
 
-**Note:** For best results with Arabic text, ensure your text is properly formatted.
+**Note:** The title appears centered on the first page only. Body text starts below the title.
 """)

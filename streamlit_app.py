@@ -291,7 +291,6 @@ if st.button("🎨 Generate PDF", type="primary", use_container_width=True):
                 pdf_buffer = create_pdf(
                     title_text,
                     title_font_size,
-                    title_bold,
                     arabic_text,
                     font_size,
                     line_spacing,

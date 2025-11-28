@@ -174,106 +174,6 @@ def draw_decorative_border(c, width, height):
     c.line(corner_size + 40, 30, width - 30, 30)
 
 
-def create_pdf(text, font_size, line_spacing, margins, alignment):
-    """Create PDF with Arabic text and decorative borders"""
-    buffer = BytesIO()
-    
-    # Create PDF canvas
-    page_width, page_height = A4
-    c = canvas.Canvas(buffer, pagesize=A4)
-    
-    # Register Arabic font (using downloaded Noto Naskh Arabic)
-    try:
-        if arabic_font_path and os.path.exists(arabic_font_path):
-            pdfmetrics.registerFont(TTFont('Arabic', arabic_font_path))
-            font_name = 'Arabic'
-        else:
-            # Fallback to Helvetica if Arabic font not available
-            font_name = 'Helvetica'
-            st.warning("⚠️ Arabic font not available, using fallback. Text may not display correctly.")
-    except Exception as e:
-        font_name = 'Helvetica'
-        st.warning(f"⚠️ Could not load Arabic font: {e}")
-    
-    # Convert margins to points
-    margin_top_pt = mm_to_points(margins['top'])
-    margin_bottom_pt = mm_to_points(margins['bottom'])
-    margin_left_pt = mm_to_points(margins['left'])
-    margin_right_pt = mm_to_points(margins['right'])
-    
-    # Calculate text area
-    text_width = page_width - margin_left_pt - margin_right_pt
-    text_height = page_height - margin_top_pt - margin_bottom_pt
-    
-    # Set font
-    c.setFont(font_name, font_size)
-    
-    # Process Arabic text
-    reshaped_text = arabic_reshaper.reshape(text)
-    bidi_text = get_display(reshaped_text)
-    
-    # Split text into lines that fit the width
-    lines = []
-    paragraphs = bidi_text.split('\n')
-    
-    for paragraph in paragraphs:
-        if paragraph.strip():
-            wrapped_lines = simpleSplit(paragraph, font_name, font_size, text_width)
-            lines.extend(wrapped_lines)
-        else:
-            lines.append('')  # Empty line for paragraph breaks
-    
-    # Calculate line height
-    line_height = font_size * line_spacing
-    
-    # Paginate
-    lines_per_page = int(text_height / line_height)
-    total_pages = (len(lines) + lines_per_page - 1) // lines_per_page
-    
-    page_number = 1
-    
-    for page_start in range(0, len(lines), lines_per_page):
-        if page_start > 0:
-            c.showPage()  # New page
-            c.setFont(font_name, font_size)
-        
-        # Draw decorative borders
-        draw_decorative_border(c, page_width, page_height)
-        
-        # Get lines for this page
-        page_lines = lines[page_start:page_start + lines_per_page]
-        
-        # Draw text
-        y_position = page_height - margin_top_pt
-        
-        for line in page_lines:
-            if line.strip():
-                # Calculate x position based on alignment
-                if alignment == "Right (Arabic)":
-                    x_position = page_width - margin_right_pt
-                    c.drawRightString(x_position, y_position, line)
-                elif alignment == "Center":
-                    x_position = page_width / 2
-                    c.drawCentredString(x_position, y_position, line)
-                else:  # Justify
-                    x_position = page_width - margin_right_pt
-                    c.drawRightString(x_position, y_position, line)
-            
-            y_position -= line_height
-        
-        # Add page number
-        c.setFont("Helvetica", 10)
-        page_text = f"Page {page_number} of {total_pages}"
-        c.drawCentredString(page_width / 2, 15, page_text)
-        
-        page_number += 1
-    
-    # Save PDF
-    c.save()
-    buffer.seek(0)
-    return buffer
-
-
 # Generate PDF button
 if st.button("🎨 Generate PDF", type="primary", use_container_width=True):
     if not arabic_text.strip():
@@ -281,22 +181,145 @@ if st.button("🎨 Generate PDF", type="primary", use_container_width=True):
     else:
         with st.spinner("Creating your PDF..."):
             try:
-                margins = {
-                    'top': margin_top,
-                    'bottom': margin_bottom,
-                    'left': margin_left,
-                    'right': margin_right
-                }
+                # Create PDF directly here
+                buffer = BytesIO()
                 
-                pdf_buffer = create_pdf(
-                    title_text,
-                    title_font_size,
-                    arabic_text,
-                    font_size,
-                    line_spacing,
-                    margins,
-                    text_align
-                )
+                # Create PDF canvas
+                page_width, page_height = A4
+                c = canvas.Canvas(buffer, pagesize=A4)
+                
+                # Register Arabic font
+                try:
+                    if arabic_font_path and os.path.exists(arabic_font_path):
+                        pdfmetrics.registerFont(TTFont('Arabic', arabic_font_path))
+                        font_name = 'Arabic'
+                    else:
+                        font_name = 'Helvetica'
+                        st.warning("⚠️ Arabic font not available, using fallback.")
+                except Exception as e:
+                    font_name = 'Helvetica'
+                    st.warning(f"⚠️ Could not load Arabic font: {e}")
+                
+                # Convert margins to points
+                margin_top_pt = mm_to_points(margin_top)
+                margin_bottom_pt = mm_to_points(margin_bottom)
+                margin_left_pt = mm_to_points(margin_left)
+                margin_right_pt = mm_to_points(margin_right)
+                
+                # Calculate text area
+                text_width = page_width - margin_left_pt - margin_right_pt
+                text_height = page_height - margin_top_pt - margin_bottom_pt
+                
+                # Process title if provided
+                title_lines = []
+                title_height = 0
+                if title_text and title_text.strip():
+                    reshaped_title = arabic_reshaper.reshape(title_text)
+                    bidi_title = get_display(reshaped_title)
+                    
+                    # Split title into lines if too long
+                    title_lines = simpleSplit(bidi_title, font_name, title_font_size, text_width)
+                    title_line_height = title_font_size * 1.5
+                    title_height = len(title_lines) * title_line_height + 20  # Add spacing after title
+                
+                # Adjust text area for title on first page
+                first_page_text_height = text_height - title_height
+                
+                # Process body text
+                reshaped_text = arabic_reshaper.reshape(arabic_text)
+                bidi_text = get_display(reshaped_text)
+                
+                # Split text into lines that fit the width
+                lines = []
+                paragraphs = bidi_text.split('\n')
+                
+                for paragraph in paragraphs:
+                    if paragraph.strip():
+                        wrapped_lines = simpleSplit(paragraph, font_name, font_size, text_width)
+                        lines.extend(wrapped_lines)
+                    else:
+                        lines.append('')  # Empty line for paragraph breaks
+                
+                # Calculate line height
+                line_height = font_size * line_spacing
+                
+                # Paginate - first page has less space due to title
+                lines_on_first_page = int(first_page_text_height / line_height) if first_page_text_height > 0 else 0
+                lines_per_page = int(text_height / line_height)
+                
+                page_number = 1
+                line_index = 0
+                
+                while line_index < len(lines):
+                    if page_number > 1:
+                        c.showPage()
+                    
+                    # Draw decorative borders
+                    draw_decorative_border(c, page_width, page_height)
+                    
+                    # Draw title on first page only
+                    y_position = page_height - margin_top_pt
+                    if page_number == 1 and title_lines:
+                        # Set title font
+                        c.setFont(font_name, title_font_size)
+                        
+                        # Draw title lines
+                        for title_line in title_lines:
+                            # Center align title
+                            x_position = page_width / 2
+                            c.drawCentredString(x_position, y_position, title_line)
+                            y_position -= title_font_size * 1.5
+                        
+                        # Add spacing after title
+                        y_position -= 20
+                    
+                    # Set body font
+                    c.setFont(font_name, font_size)
+                    
+                    # Determine how many lines for this page
+                    if page_number == 1:
+                        lines_this_page = min(lines_on_first_page, len(lines) - line_index)
+                    else:
+                        lines_this_page = min(lines_per_page, len(lines) - line_index)
+                    
+                    # Get lines for this page
+                    page_lines = lines[line_index:line_index + lines_this_page]
+                    
+                    # Draw body text
+                    for line in page_lines:
+                        if line.strip():
+                            # Calculate x position based on alignment
+                            if text_align == "Right (Arabic)":
+                                x_position = page_width - margin_right_pt
+                                c.drawRightString(x_position, y_position, line)
+                            elif text_align == "Center":
+                                x_position = page_width / 2
+                                c.drawCentredString(x_position, y_position, line)
+                            else:  # Justify
+                                x_position = page_width - margin_right_pt
+                                c.drawRightString(x_position, y_position, line)
+                        
+                        y_position -= line_height
+                    
+                    # Add page number
+                    c.setFont(font_name, 10)
+                    
+                    # Calculate total pages
+                    remaining_lines = len(lines) - lines_on_first_page
+                    if remaining_lines > 0:
+                        total_pages = 1 + ((remaining_lines + lines_per_page - 1) // lines_per_page)
+                    else:
+                        total_pages = 1
+                    
+                    page_text = f"Page {page_number} of {total_pages}"
+                    c.drawCentredString(page_width / 2, 15, page_text)
+                    
+                    line_index += lines_this_page
+                    page_number += 1
+                
+                # Save PDF
+                c.save()
+                buffer.seek(0)
                 
                 st.success("✅ PDF created successfully!")
                 
@@ -315,7 +338,7 @@ if st.button("🎨 Generate PDF", type="primary", use_container_width=True):
                 # Download button
                 st.download_button(
                     label="📥 Download PDF",
-                    data=pdf_buffer,
+                    data=buffer,
                     file_name="arabic_document.pdf",
                     mime="application/pdf",
                     use_container_width=True
@@ -323,6 +346,8 @@ if st.button("🎨 Generate PDF", type="primary", use_container_width=True):
                 
             except Exception as e:
                 st.error(f"❌ Error creating PDF: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
 
 # Footer
 st.markdown("---")

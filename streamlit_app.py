@@ -295,54 +295,41 @@ if st.button("🎨 Generate PDF", type="primary", use_container_width=True):
                             elif text_align == "Center":
                                 x_position = page_width / 2
                                 c.drawCentredString(x_position, y_position, line)
-                            else:  # Justify - for RTL languages, align RIGHT edge and stretch to LEFT edge
-                                # Check if this is the last line of a paragraph (next line is empty or last line)
+                            else:  # Justify - use text object for proper justification
+                                # Check if this is the last line of a paragraph
                                 is_last_line = (i == len(page_lines) - 1) or (i + 1 < len(page_lines) and not page_lines[i + 1].strip())
                                 
-                                # Get line width
-                                line_width = c.stringWidth(line, font_name, font_size)
-                                
-                                # Count spaces in the line
-                                space_count = line.count(' ')
-                                
-                                # Only justify if: not last line, has spaces, and line is at least 50% of width
-                                should_justify = not is_last_line and space_count > 0 and line_width > (text_width * 0.5)
-                                
-                                if should_justify:
-                                    # Calculate total space needed to stretch across full width
-                                    space_needed = text_width - line_width
-                                    
-                                    # Calculate extra space per word gap
-                                    extra_space_per_gap = space_needed / space_count
-                                    
-                                    # Limit extra space to avoid over-stretching (max 100% of font size)
-                                    max_extra_space = font_size * 1.0
-                                    if extra_space_per_gap > max_extra_space:
-                                        # Too much stretching needed, fall back to right align
-                                        x_position = page_width - margin_right_pt
-                                        c.drawRightString(x_position, y_position, line)
-                                    else:
-                                        # For RTL text: Start from RIGHT margin and work towards LEFT
-                                        # Split into words and reverse for RTL rendering
-                                        words = line.split(' ')
-                                        x_pos = page_width - margin_right_pt  # Start from RIGHT margin
-                                        
-                                        # Draw words from right to left
-                                        for word_idx, word in enumerate(words):
-                                            if word:  # Skip empty strings
-                                                word_width = c.stringWidth(word, font_name, font_size)
-                                                # Draw word right-aligned at current position
-                                                c.drawRightString(x_pos, y_position, word)
-                                                x_pos -= word_width
-                                                
-                                                # Add space between words (except after last word)
-                                                if word_idx < len(words) - 1:
-                                                    space_width = c.stringWidth(' ', font_name, font_size)
-                                                    x_pos -= (space_width + extra_space_per_gap)
-                                else:
-                                    # Last line or can't justify - right align
+                                if is_last_line:
+                                    # Last line - right align
                                     x_position = page_width - margin_right_pt
                                     c.drawRightString(x_position, y_position, line)
+                                else:
+                                    # Justify the line
+                                    line_width = c.stringWidth(line, font_name, font_size)
+                                    space_count = line.count(' ')
+                                    
+                                    # Only justify if line is substantial and has spaces
+                                    if space_count > 0 and line_width > (text_width * 0.5):
+                                        space_needed = text_width - line_width
+                                        extra_space = space_needed / space_count
+                                        
+                                        # Limit stretching
+                                        if extra_space < font_size * 1.0:
+                                            # Use text object with word spacing for perfect justification
+                                            text_obj = c.beginText()
+                                            text_obj.setTextOrigin(page_width - margin_right_pt - text_width, y_position)
+                                            text_obj.setFont(font_name, font_size)
+                                            text_obj.setWordSpace(c.stringWidth(' ', font_name, font_size) + extra_space)
+                                            text_obj.textLine(line)
+                                            c.drawText(text_obj)
+                                        else:
+                                            # Too much stretch - right align
+                                            x_position = page_width - margin_right_pt
+                                            c.drawRightString(x_position, y_position, line)
+                                    else:
+                                        # Short line - right align
+                                        x_position = page_width - margin_right_pt
+                                        c.drawRightString(x_position, y_position, line)
                         
                         y_position -= line_height
                     

@@ -286,7 +286,7 @@ if st.button("🎨 Generate PDF", type="primary", use_container_width=True):
                     page_lines = lines[line_index:line_index + lines_this_page]
                     
                     # Draw body text
-                    for line in page_lines:
+                    for i, line in enumerate(page_lines):
                         if line.strip():
                             # Calculate x position based on alignment
                             if text_align == "Right (Arabic)":
@@ -296,8 +296,42 @@ if st.button("🎨 Generate PDF", type="primary", use_container_width=True):
                                 x_position = page_width / 2
                                 c.drawCentredString(x_position, y_position, line)
                             else:  # Justify
-                                x_position = page_width - margin_right_pt
-                                c.drawRightString(x_position, y_position, line)
+                                # Check if this is the last line of a paragraph (next line is empty or last line)
+                                is_last_line = (i == len(page_lines) - 1) or (i + 1 < len(page_lines) and not page_lines[i + 1].strip())
+                                
+                                if is_last_line:
+                                    # Last line of paragraph - right align instead of justify
+                                    x_position = page_width - margin_right_pt
+                                    c.drawRightString(x_position, y_position, line)
+                                else:
+                                    # Justify the line by distributing spaces
+                                    line_width = c.stringWidth(line, font_name, font_size)
+                                    space_needed = text_width - line_width
+                                    
+                                    # Count spaces in the line
+                                    space_count = line.count(' ')
+                                    
+                                    if space_count > 0 and space_needed > 0:
+                                        # Calculate extra space per word gap
+                                        extra_space = space_needed / space_count
+                                        
+                                        # Draw text with adjusted spacing
+                                        words = line.split(' ')
+                                        x_pos = page_width - margin_right_pt
+                                        
+                                        for word_idx, word in enumerate(reversed(words)):
+                                            word_width = c.stringWidth(word, font_name, font_size)
+                                            c.drawRightString(x_pos, y_position, word)
+                                            x_pos -= word_width
+                                            
+                                            # Add space between words (except after last word)
+                                            if word_idx < len(words) - 1:
+                                                space_width = c.stringWidth(' ', font_name, font_size)
+                                                x_pos -= (space_width + extra_space)
+                                    else:
+                                        # Not enough spaces or negative space - just right align
+                                        x_position = page_width - margin_right_pt
+                                        c.drawRightString(x_position, y_position, line)
                         
                         y_position -= line_height
                     
